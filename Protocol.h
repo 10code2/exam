@@ -10,6 +10,9 @@ typedef unsigned uint;
 #define ENROLL_OK "登陆成功"
 #define ENROLL_FAILED "登陆失败"
 #define SEARCH_USR_FAIL "用户不存在"
+#define EXAM_FAIL  "考试不存在"
+#define STUDENT_FAIL "学生不存在"
+#define UPLOAD_READY "上传准备"
 
 
 enum MSG_TYPE
@@ -21,6 +24,9 @@ enum MSG_TYPE
 
     MSG_TYPE_ENROLL_REQUEST , // 登陆请求
     MSG_TYPE_ENROLL_RESPOND , // 登陆回复
+
+    MSG_TYPE_CHECK_STUDENT_REQUEST , // 学生信息请求
+    MSG_TYPE_CHECK_STUDENT_RESPOND , // 学生信息回复
 
     MSG_TYPE_MAX = 0x00ffffff
 };

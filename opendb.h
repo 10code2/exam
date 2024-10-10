@@ -16,6 +16,8 @@ public:
     bool handleRegist(const char* name, const char* pwd);
     bool handleEnroll(const char* name, const char* pwd);
     void handleOffLine(const char* name);
+    bool handleCheckExam(const char* name);
+    bool handleCheckStudent(const char* name);
 
 signals:
 

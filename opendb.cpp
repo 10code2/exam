@@ -58,6 +58,54 @@ void OpenDb::handleOffLine(const char *name)
     }
 }
 
+bool OpenDb::handleCheckExam(const char *name)
+{
+    if(name == NULL)
+    {
+        qDebug() << "name is blank";
+        return false;
+    }
+    else
+    {
+        QString cmd = QString("select * from exam where name=%1").arg(name);
+        qDebug() << cmd;
+        QSqlQuery query;
+        query.exec(cmd);
+        if(query.next())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
+bool OpenDb::handleCheckStudent(const char *name)
+{
+    if(name == NULL)
+    {
+        qDebug() << "name is blank";
+        return false;
+    }
+    else
+    {
+        QString cmd = QString("select * from student where name=%1").arg(name);
+        qDebug() << cmd;
+        QSqlQuery query;
+        query.exec(cmd);
+        if(query.next())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
 OpenDb& OpenDb::getInstance()
 {
     static OpenDb instance;

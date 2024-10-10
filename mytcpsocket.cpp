@@ -52,7 +52,7 @@ void MyTcpSocket::recvMsg()  // 接受socket数据
     case MSG_TYPE_ENROLL_REQUEST:
     {
         char pwd[32] = {'\0'};
-        strncpy(cName, pdu->caData, 32);
+        strncpy(cName, pdu->caData, 32);  // 记录账号用于区分连接
         strncpy(pwd, pdu->caData + 32, 32);
 
         bool ret = OpenDb::getInstance().handleEnroll(cName, pwd);
@@ -66,6 +66,31 @@ void MyTcpSocket::recvMsg()  // 接受socket数据
         {
             strcpy(resPDU->caData, ENROLL_FAILED);
         }
+        write((char*)resPDU, resPDU->uiPDULen);
+        free(resPDU);
+        resPDU = NULL;
+        break;
+    }
+    case MSG_TYPE_CHECK_STUDENT_REQUEST:{
+        char ID[32] = {'\0'};
+        char name[32] = {'\0'};
+        strncpy(ID, pdu->caData, 32);
+        strncpy(name, pdu->caData + 32, 32);
+
+        PDU *resPDU = mkPDU(0);
+        resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
+        // 检查考试和学生信息是否存在
+        if(OpenDb::getInstance().handleCheckExam(ID)){
+            strcpy(resPDU->caData, EXAM_FAIL);
+        }
+        else if(OpenDb::getInstance().handleCheckStudent(name)){
+            strcpy(resPDU->caData, STUDENT_FAIL);
+        }
+        else{
+            resPDU->uiMsgType = MSG_TYPE_CHECK_STUDENT_RESPOND;
+            strcpy(resPDU->caData, UPLOAD_READY);
+        }
+
         write((char*)resPDU, resPDU->uiPDULen);
         free(resPDU);
         resPDU = NULL;
