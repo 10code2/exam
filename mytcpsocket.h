@@ -3,6 +3,9 @@
 
 #include <QObject>
 #include<QTcpSocket>
+#include<QFile>
+#include<QBuffer>
+#include<QImageReader>
 
 class MyTcpSocket : public QTcpSocket
 {

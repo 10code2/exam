@@ -28,6 +28,9 @@ enum MSG_TYPE
     MSG_TYPE_CHECK_STUDENT_REQUEST , // 学生信息请求
     MSG_TYPE_CHECK_STUDENT_RESPOND , // 学生信息回复
 
+    MSG_TYPE_SEND_FILE_REQUEST , // 文件传输请求
+    MSG_TYPE_SEND_FILE_RESPOND , // 文件传输回复
+
     MSG_TYPE_MAX = 0x00ffffff
 };
 

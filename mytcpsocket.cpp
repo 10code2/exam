@@ -89,12 +89,40 @@ void MyTcpSocket::recvMsg()  // 接受socket数据
         else{
             resPDU->uiMsgType = MSG_TYPE_CHECK_STUDENT_RESPOND;
             strcpy(resPDU->caData, UPLOAD_READY);
-        }
+        } // 重复提交?
 
         write((char*)resPDU, resPDU->uiPDULen);
         free(resPDU);
         resPDU = NULL;
         break;
+    }
+    case MSG_TYPE_SEND_FILE_REQUEST:  // 接受试卷文件
+    {
+        char path[64] = {'\0'};
+        strcpy(path, pdu->caData);  // 得到路径
+        qDebug() << "文件路径:" << path;
+
+        // 把文件保存
+        QByteArray receData((char*)(pdu->caMsg), pdu->uiMsgLen);//创建接收字节流
+
+        qDebug() << "1";
+        QBuffer receBuffer(&receData);//
+        qDebug() << "2";
+        QImageReader reader(&receBuffer,"png");
+        qDebug() << "3";
+        QImage receImage=reader.read();
+        qDebug() << "4";
+        receImage.save(path);
+        qDebug() << "5";
+
+//        QFile file(path);
+//        if(file.open(QIODevice::WriteOnly)){
+//            file.write((char*)(pdu->caMsg));
+//        }
+//        else{
+//            qDebug() << "文件保存失败";
+//        }
+//        file.close();
     }
 
     default: break;
