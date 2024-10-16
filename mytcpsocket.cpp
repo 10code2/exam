@@ -80,10 +80,10 @@ void MyTcpSocket::recvMsg()  // 接受socket数据
         PDU *resPDU = mkPDU(0);
         resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
         // 检查考试和学生信息是否存在
-        if(OpenDb::getInstance().handleCheckExam(ID)){
+        if(!OpenDb::getInstance().handleCheckExam(ID)){
             strcpy(resPDU->caData, EXAM_FAIL);
         }
-        else if(OpenDb::getInstance().handleCheckStudent(name)){
+        else if(!OpenDb::getInstance().handleCheckSubmit(name, ID)){
             strcpy(resPDU->caData, STUDENT_FAIL);
         }
         else{
@@ -105,24 +105,23 @@ void MyTcpSocket::recvMsg()  // 接受socket数据
         // 把文件保存
         QByteArray receData((char*)(pdu->caMsg), pdu->uiMsgLen);//创建接收字节流
 
-        qDebug() << "1";
         QBuffer receBuffer(&receData);//
-        qDebug() << "2";
         QImageReader reader(&receBuffer,"png");
-        qDebug() << "3";
         QImage receImage=reader.read();
-        qDebug() << "4";
-        receImage.save(path);
-        qDebug() << "5";
 
-//        QFile file(path);
-//        if(file.open(QIODevice::WriteOnly)){
-//            file.write((char*)(pdu->caMsg));
-//        }
-//        else{
-//            qDebug() << "文件保存失败";
-//        }
-//        file.close();
+        PDU *resPDU = mkPDU(0);
+        if(receImage.save(path)){
+            resPDU->uiMsgType = MSG_TYPE_CHECK_STUDENT_RESPOND;
+        }
+        else{
+            resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
+            strcpy(resPDU->caData, IMAGE_SAVE_FAIL);
+        }
+
+        write((char*)resPDU, resPDU->uiPDULen);
+        free(resPDU);
+        resPDU = NULL;
+        break;
     }
 
     default: break;

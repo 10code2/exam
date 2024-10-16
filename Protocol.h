@@ -13,7 +13,7 @@ typedef unsigned uint;
 #define EXAM_FAIL  "考试不存在"
 #define STUDENT_FAIL "学生不存在"
 #define UPLOAD_READY "上传准备"
-
+#define IMAGE_SAVE_FAIL "图片保存失败"
 
 enum MSG_TYPE
 {

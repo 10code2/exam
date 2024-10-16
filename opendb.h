@@ -18,6 +18,7 @@ public:
     void handleOffLine(const char* name);
     bool handleCheckExam(const char* name);
     bool handleCheckStudent(const char* name);
+    bool handleCheckSubmit(const char* name, const char* id);
 
 signals:
 

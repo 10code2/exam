@@ -59,7 +59,7 @@ void OpenDb::handleOffLine(const char *name)
 }
 
 bool OpenDb::handleCheckExam(const char *name)
-{
+{  // 检查考试是否存在
     if(name == NULL)
     {
         qDebug() << "name is blank";
@@ -83,7 +83,7 @@ bool OpenDb::handleCheckExam(const char *name)
 }
 
 bool OpenDb::handleCheckStudent(const char *name)
-{
+{ // 检查学生是否存在，应该改为学生是否在考试表里
     if(name == NULL)
     {
         qDebug() << "name is blank";
@@ -92,6 +92,27 @@ bool OpenDb::handleCheckStudent(const char *name)
     else
     {
         QString cmd = QString("select * from student where name=%1").arg(name);
+        qDebug() << cmd;
+        QSqlQuery query;
+        query.exec(cmd);
+        if(query.next())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+}
+
+bool OpenDb::handleCheckSubmit(const char *name, const char *id)
+{ // 提交表应该提前登记好考试学生信息
+    if(name == NULL || id == NULL){
+        return false;
+    }
+    else{
+        QString cmd = QString("select * from submit where examName=\'%1\' and studentId=%2").arg(name).arg(id);
         qDebug() << cmd;
         QSqlQuery query;
         query.exec(cmd);
