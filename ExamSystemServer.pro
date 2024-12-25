@@ -23,6 +23,7 @@ SOURCES += \
     server.cpp
 
 HEADERS += \
+    CommunicationProtocol.h \
     opendb.h \
     mytcpsocket.h \
     Protocol.h \

@@ -31,6 +31,18 @@ enum MSG_TYPE
     MSG_TYPE_SEND_FILE_REQUEST , // 文件传输请求
     MSG_TYPE_SEND_FILE_RESPOND , // 文件传输回复
 
+    MSG_TYPE_GET_EXAM_REQUEST , // 试卷请求
+    MSG_TYPE_GET_EXAM_RESPOND , // 试卷回复
+
+    MSG_TYPE_CHOOSE_REQUEST,  // 选择题请求
+    MSG_TYPE_CHOOSE_RESPOND,  // 选择题回复
+
+    MSG_TYPE_FILL_REQUEST,  // 填空题请求
+    MSG_TYPE_FILL_RESPOND,  // 填空题回复
+
+    MSG_TYPE_JUDGMENT_REQUEST,  // 判断题请求
+    MSG_TYPE_JUDGMENT_RESPOND,  // 判断题回复
+
     MSG_TYPE_MAX = 0x00ffffff
 };
 

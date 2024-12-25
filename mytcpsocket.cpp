@@ -1,10 +1,11 @@
 #include "mytcpsocket.h"
 #include "Protocol.h"
 #include "opendb.h"
+#include "CommunicationProtocol.h"
 
 MyTcpSocket::MyTcpSocket(QObject *parent) : QTcpSocket(parent)
 {
-    cName[32] = {'\0'};
+    cName[0] = '\0';
     connect(this, SIGNAL(readyRead()), this, SLOT(recvMsg()));
     connect(this, SIGNAL(disconnected()), this, SLOT(clientOffLine()));
 }
@@ -16,116 +17,225 @@ void MyTcpSocket::clientOffLine() // 发出用户离线信号
     emit offline(this);  // 发送信号
 }
 
-void MyTcpSocket::recvMsg()  // 接受socket数据
+void MyTcpSocket::handleLogin(const QJsonObject &request, QTcpSocket *socket)
 {
-    uint uiPDULen = this->bytesAvailable();  // 可接受信息大小
-    // 接收PDU数据包
-    this->read((char*)&uiPDULen, sizeof (uint));
-    uint uiMsgLen = uiPDULen - sizeof(PDU);
-    PDU* pdu = mkPDU(uiMsgLen);
-    this->read((char*)pdu + sizeof (uint), uiPDULen - sizeof(uint));
+    // 1 读取信息
+    CommunicationProtocol::LoginRequest loginRequest;
+    loginRequest = CommunicationProtocol::LoginRequest::fromJson(request);
+    qDebug() << "LoginRequest:" << loginRequest.username << "," << loginRequest.userType;
 
-    switch (pdu->uiMsgType) {
-    case MSG_TYPE_REGIST_REQUEST:
-    {
-        char name[32] = {'\0'};
-        char pwd[32] = {'\0'};
-        strncpy(name, pdu->caData, 32);
-        strncpy(pwd, pdu->caData + 32, 32);
+    // 2 这里应该验证用户名和密码是否正确
+    if (OpenDb::getInstance().handleLogin(loginRequest.username, loginRequest.password, loginRequest.userType)) {
+        CommunicationProtocol::LoginResponse response;
+        response.success = true;
+        response.userId = loginRequest.username;
+        response.userType = loginRequest.userType;
+        sendResponse(socket, response.toJson());
+    } else {
+        sendErrorResponse(socket, "用户名或密码错误");
+    }
+}
 
-        bool ret = OpenDb::getInstance().handleRegist(name, pwd);
-        PDU *resPDU = mkPDU(0);
-        resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
-        if(ret)
-        {
-            strcpy(resPDU->caData, REGIST_OK);
-        }
-        else
-        {
-            strcpy(resPDU->caData, REGIST_FAILED);
-        }
-        write((char*)resPDU, resPDU->uiPDULen);
-        free(resPDU);
-        resPDU = NULL;
+void MyTcpSocket::handleGetExams(const QJsonObject &request)
+{
+    // 1 读取信息
+    CommunicationProtocol::GetExamsRequest getExamsRequest;
+    getExamsRequest = CommunicationProtocol::GetExamsRequest::fromJson(request);
+    qDebug() << "LoginRequest:" << getExamsRequest.course << "," << getExamsRequest.teacher;
+
+    // 2 处理消息
+    QList<QJsonObject> exams;
+    OpenDb::getInstance().handleGetExams(getExamsRequest.academicYear, getExamsRequest.semester, getExamsRequest.teacher,
+                                         getExamsRequest.course, getExamsRequest.data, getExamsRequest.end, exams);
+
+    // 3 回复
+    CommunicationProtocol::GetExamsResponse response;
+    response.success = true;
+    response.exams = exams;
+    qDebug() << "exams num: " << response.exams.size();
+    sendResponse(this, response.toJson());
+}
+
+void MyTcpSocket::handleCreateExam(const QJsonObject &request)
+{
+    // 1 读取信息
+    CommunicationProtocol::CreateExamRequest createExamsRequest;
+    createExamsRequest = CommunicationProtocol::CreateExamRequest::fromJson(request);
+    qDebug() << "createExamsRequest:" << createExamsRequest.course << "," << createExamsRequest.teacher;
+
+    // 2 使用 ISO 标准格式（YYYY-MM-DD）将 QString 转换为 QDate
+    QDate date = QDate::fromString(createExamsRequest.data, "yyyy-MM-dd");
+    if (date.isValid()) {
+        // 日期转换成功
+        qDebug() << "Date is:" << date.toString("yyyy-MM-dd");
+    } else {
+        // 日期转换失败
+        qDebug() << "Invalid date string";
+        sendErrorResponse(this, "日期格式不对");
+        return;
+    }
+
+    // 3 使用 HH:mm:ss 格式将 QString 转换为 QTime
+    QTime time = QTime::fromString(createExamsRequest.end, "HH:mm");
+
+    if (time.isValid()) {
+        // 时间转换成功
+        qDebug() << "Time is:" << time.toString("HH:mm:ss");
+    } else {
+        // 时间转换失败
+        qDebug() << "Invalid time string";
+        sendErrorResponse(this, "时间格式不对");
+        return;
+    }
+
+    // 4 这里发布
+    int ret = OpenDb::getInstance().handlePublishExam(createExamsRequest.course, date, time, createExamsRequest.teacher);
+    if (!ret) {
+        CommunicationProtocol::SuccessResponse response;
+        response.action = CommunicationProtocol::CREATE_EXAM;
+        response.successMessage = "发布考试成功";
+        sendResponse(this, response.toJson());
+    } else {
+        if(ret == 1) sendErrorResponse(this, "课程不存在");
+        if(ret == 2) sendErrorResponse(this, "老师不存在");
+        if(ret == 3) sendErrorResponse(this, "发布考试失败");
+    }
+}
+
+void MyTcpSocket::handleDeleteExam(const QJsonObject &request)
+{
+    // 1 读取信息
+    CommunicationProtocol::DeleteExamRequest deleteExamsRequest;
+    deleteExamsRequest = CommunicationProtocol::DeleteExamRequest::fromJson(request);
+    qDebug() << "handleDeleteExam:" << deleteExamsRequest.course << "," << deleteExamsRequest.teacher;
+
+    // 2 使用 ISO 标准格式（YYYY-MM-DD）将 QString 转换为 QDate
+    QDate date = QDate::fromString(deleteExamsRequest.data, "yyyy-MM-dd");
+    if (date.isValid()) {
+        // 日期转换成功
+        qDebug() << "Date is:" << date.toString("yyyy-MM-dd");
+    } else {
+        // 日期转换失败
+        qDebug() << "Invalid date string";
+        sendErrorResponse(this, "日期格式不对");
+        return;
+    }
+
+    // 3 使用 HH:mm:ss 格式将 QString 转换为 QTime
+    QTime time = QTime::fromString(deleteExamsRequest.end, "HH:mm:ss");
+
+    if (time.isValid()) {
+        // 时间转换成功
+        qDebug() << "Time is:" << time.toString("HH:mm:ss");
+    } else {
+        // 时间转换失败
+        qDebug() << "Invalid time string";
+        sendErrorResponse(this, "时间格式不对");
+        return;
+    }
+
+    // 4 这里删除
+    QString room = "B3305";
+    int examID = OpenDb::getInstance().handleGetExamID(deleteExamsRequest.academicYear, deleteExamsRequest.semester, deleteExamsRequest.course,
+                                    date, time, deleteExamsRequest.teacher);
+    if(examID == -1){
+        // 考试不存在
+        qDebug() << "Invalid time string";
+        sendErrorResponse(this, "考试不存在");
+        return;
+    }
+    qDebug() << "examID = " << examID;
+    if (OpenDb::getInstance().handleDeleteExam(examID)) {
+        CommunicationProtocol::SuccessResponse response;
+        response.action = CommunicationProtocol::CREATE_EXAM;
+        response.successMessage = "删除考试成功";
+        sendResponse(this, response.toJson());
+    } else {
+        sendErrorResponse(this, "删除考试失败");
+    }
+}
+
+void MyTcpSocket::handleGetScores(const QJsonObject &request)
+{
+    // 1 读取信息
+    CommunicationProtocol::GetScoresRequest getScoresRequest;
+    getScoresRequest = CommunicationProtocol::GetScoresRequest::fromJson(request);
+    qDebug() << "LoginRequest:" << getScoresRequest.name << "," << getScoresRequest.major;
+
+    // 2 处理消息
+    QList<QJsonObject> scores;
+    OpenDb::getInstance().handleGetScores(getScoresRequest.name, getScoresRequest.major,getScoresRequest.className,
+                                          getScoresRequest.number, getScoresRequest.course, scores);
+
+    // 3 回复
+    CommunicationProtocol::GetScoresResponse response;
+    response.success = true;
+    response.scores = scores;
+    qDebug() << "students num: " << response.scores.size();
+    sendResponse(this, response.toJson());
+}
+
+void MyTcpSocket::sendResponse(QTcpSocket *socket, const QJsonObject &response)
+{
+    QJsonDocument jsonDoc(response);
+    QByteArray jsonData = jsonDoc.toJson();
+    socket->write(jsonData);
+    socket->flush();
+}
+
+void MyTcpSocket::sendErrorResponse(QTcpSocket *socket, const QString &errorMessage)
+{
+    CommunicationProtocol::ErrorResponse response;
+    response.errorMessage = errorMessage;
+    sendResponse(socket, response.toJson());
+}
+
+void MyTcpSocket::recvMsg()
+{
+    QByteArray data = this->readAll();
+    QJsonDocument jsonDoc = QJsonDocument::fromJson(data);
+
+    if (jsonDoc.isNull()) {
+        qWarning() << "Failed to parse JSON data:" << data;
+        return;
+    }
+
+    QJsonObject jsonObj = jsonDoc.object();
+
+    // 提取 action 字段
+    int action = jsonObj.value("action").toInt(-1); // 默认值设为 -1 表示未知动作
+
+    switch(action){
+    case CommunicationProtocol::LOGIN: {
+        handleLogin(jsonObj, this);
         break;
     }
-    case MSG_TYPE_ENROLL_REQUEST:
-    {
-        char pwd[32] = {'\0'};
-        strncpy(cName, pdu->caData, 32);  // 记录账号用于区分连接
-        strncpy(pwd, pdu->caData + 32, 32);
-
-        bool ret = OpenDb::getInstance().handleEnroll(cName, pwd);
-        PDU *resPDU = mkPDU(0);
-        resPDU->uiMsgType = MSG_TYPE_ENROLL_RESPOND;
-        if(ret)
-        {
-            strcpy(resPDU->caData, ENROLL_OK);
-        }
-        else
-        {
-            strcpy(resPDU->caData, ENROLL_FAILED);
-        }
-        write((char*)resPDU, resPDU->uiPDULen);
-        free(resPDU);
-        resPDU = NULL;
+    case CommunicationProtocol::GET_EXAMS: {
+        handleGetExams(jsonObj);
         break;
     }
-    case MSG_TYPE_CHECK_STUDENT_REQUEST:{
-        char ID[32] = {'\0'};
-        char name[32] = {'\0'};
-        strncpy(ID, pdu->caData, 32);
-        strncpy(name, pdu->caData + 32, 32);
-
-        PDU *resPDU = mkPDU(0);
-        resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
-        // 检查考试和学生信息是否存在
-        if(!OpenDb::getInstance().handleCheckExam(ID)){
-            strcpy(resPDU->caData, EXAM_FAIL);
-        }
-        else if(!OpenDb::getInstance().handleCheckSubmit(name, ID)){
-            strcpy(resPDU->caData, STUDENT_FAIL);
-        }
-        else{
-            resPDU->uiMsgType = MSG_TYPE_CHECK_STUDENT_RESPOND;
-            strcpy(resPDU->caData, UPLOAD_READY);
-        } // 重复提交?
-
-        write((char*)resPDU, resPDU->uiPDULen);
-        free(resPDU);
-        resPDU = NULL;
+    case CommunicationProtocol::ADD_TEACHER: {
+        // handleAddTeacher(jsonObj);
         break;
     }
-    case MSG_TYPE_SEND_FILE_REQUEST:  // 接受试卷文件
-    {
-        char path[64] = {'\0'};
-        strcpy(path, pdu->caData);  // 得到路径
-        qDebug() << "文件路径:" << path;
-
-        // 把文件保存
-        QByteArray receData((char*)(pdu->caMsg), pdu->uiMsgLen);//创建接收字节流
-
-        QBuffer receBuffer(&receData);//
-        QImageReader reader(&receBuffer,"png");
-        QImage receImage=reader.read();
-
-        PDU *resPDU = mkPDU(0);
-        if(receImage.save(path)){
-            resPDU->uiMsgType = MSG_TYPE_CHECK_STUDENT_RESPOND;
-        }
-        else{
-            resPDU->uiMsgType = MSG_TYPE_ORDINARY_RESPOND;
-            strcpy(resPDU->caData, IMAGE_SAVE_FAIL);
-        }
-
-        write((char*)resPDU, resPDU->uiPDULen);
-        free(resPDU);
-        resPDU = NULL;
+    case CommunicationProtocol::CREATE_EXAM: {
+        // qDebug() << "CREATE_EXAM 请求";
+        handleCreateExam(jsonObj);
         break;
     }
-
-    default: break;
+    case CommunicationProtocol::DELETE_EXAM: {
+        // qDebug() << "DELETE_EXAM 请求";
+        handleDeleteExam(jsonObj);
+        break;
     }
-    free(pdu);
-    pdu = NULL;
+    case CommunicationProtocol::GET_SCORES: {
+        // qDebug() << "DELETE_EXAM 请求";
+        handleGetScores(jsonObj);
+        break;
+    }
+    // 添加其他动作的处理分支
+    default:
+        qWarning() << "Unhandled action:" << action;
+        break;
+    }
 }
